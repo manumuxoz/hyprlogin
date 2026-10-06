@@ -391,7 +391,10 @@ void CHyprlock::run() {
 
 void CHyprlock::unlock() {
     if (!m_bLocked) {
-        Log::logger->log(Log::WARN, "Unlock called, but not locked yet.");
+        // Greeter fix (Debian): auth may finish before the `locked` event is
+        // received; queue the unlock instead of dropping it (session hang).
+        Log::logger->log(Log::WARN, "Unlock called, but not locked yet. Queuing unlock.");
+        m_bUnlockQueued = true;
         return;
     }
 
@@ -816,6 +819,12 @@ void CHyprlock::onLockLocked() {
     Log::logger->log(Log::INFO, "onLockLocked called");
 
     m_bLocked = true;
+
+    if (m_bUnlockQueued) {
+        Log::logger->log(Log::INFO, "onLockLocked: running unlock queued before locked event");
+        m_bUnlockQueued = false;
+        unlock();
+    }
 }
 
 void CHyprlock::onLockFinished() {
